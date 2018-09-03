@@ -2,7 +2,7 @@ package models
 
 // RelyingParty is the group the User is authenticating with
 type RelyingParty struct {
-	ID          string `json:"id" storm:"id,increment"`
+	ID          string `json:"id" storm:"id"`
 	DisplayName string `json:"display_name"`
 	Icon        string `json:"icon,omitempty"`
 	Users       []User `json:"users,omitempty" storm:"unique"`

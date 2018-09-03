@@ -15,14 +15,14 @@ import (
 
 // Credential is the stored credential for Auth
 type Credential struct {
-	ID        int64 `json:"id" storm:"id,increment"`
+	ID        int64 `json:"id"`
 	CreatedAt time.Time
 	Counter   []byte `json:"sign_count"`
 
-	RelyingParty   RelyingParty `json:"rp"`
+	RelyingParty   RelyingParty `json:"rp" storm:"inline"`
 	RelyingPartyID string       `json:"rp_id"`
 
-	User   User  `json:"user"`
+	User   User  `json:"user" storm:"inline"`
 	UserID int64 `json:"user_id"`
 
 	Type   string `json:"type,omitempty"`
@@ -31,7 +31,7 @@ type Credential struct {
 
 	CredID string `json:"credential_id,omitempty"`
 
-	PublicKey PublicKey `json:"public_key,omitempty"`
+	PublicKey PublicKey `json:"public_key,omitempty" storm:"inline"`
 }
 
 // PublicKey is parsed from the credential creation response
@@ -42,11 +42,15 @@ type PublicKey struct {
 	XCoord       []byte `codec:"-2"`
 	YCoord       []byte `codec:"-3"`
 	Curve        int8   `codec:"-1"`
-	CredentialID int64  `storm:"id" codec:"-,omitempty"`
+	CredentialID int64  `codec:"-,omitempty"`
 }
 
 // CreateCredential creates a new credential object
 func CreateCredential(c *Credential) error {
+	if c.ID == 0 {
+		log.Println("Bumping ID up to 1")
+		c.ID = 1
+	}
 	fmt.Println("Creating Credential")
 	_, err := GetCredentialForUserAndRelyingParty(&c.User, &c.RelyingParty)
 	if err == nil {
@@ -58,6 +62,8 @@ func CreateCredential(c *Credential) error {
 		return err
 	}
 
+	log.Println("NEW credential:", c)
+
 	creds := db.From("credentials")
 
 	err = creds.Save(c)
@@ -65,11 +71,17 @@ func CreateCredential(c *Credential) error {
 		log.Println("CreateCredential/db.Save error:", err)
 		return err
 	}
+
 	return err
 }
 
 // UpdateCredential updates the credential with new attributes.
 func UpdateCredential(c *Credential) error {
+	if c.ID == 0 {
+		log.Println("Bumping ID up to 1")
+		c.ID = 1
+	}
+	log.Println("UPDATE credential:", c)
 	creds := db.From("credentials")
 	err = creds.Save(c)
 	return err
@@ -129,7 +141,12 @@ func GetCredentialForUser(user *User, credentialID string) (Credential, error) {
 	cred := Credential{}
 	//err := db.Where("user_id = ? AND cred_id = ?", user.ID, credentialID).Preload("PublicKey").Find(&cred).Error
 	credsDB := db.From("credentials")
-	err := credsDB.Select(q.Eq("UserID", user.ID), q.Eq("CredID", credentialID)).First(&cred)
+	//err := credsDB.Select(q.Eq("UserID", user.ID), q.Eq("CredID", credentialID)).First(&cred)
+	creds := []Credential{}
+	err := credsDB.Find("CredID", credentialID, &creds)
+	for _, v := range creds {
+		log.Println("CREDS:", v.PublicKey)
+	}
 	return cred, err
 }
 
@@ -143,13 +160,67 @@ func DeleteCredentialByID(credentialID string) error {
 
 // GetUnformattedPublicKeyForCredential gives you the raw PublicKey model for a credential
 func GetUnformattedPublicKeyForCredential(c *Credential) (PublicKey, error) {
-	return c.PublicKey, err
+	/*
+		var cred Credential
+		credsDB := db.From("credentials")
+		err := credsDB.One("CredID", &c.CredID, &cred)
+		if err != nil {
+			log.Println("Error getting pubkey:", c.ID, c.CredID, err)
+		}
+		log.Println("PubKey:", cred.PublicKey)
+	*/
+	var cred Credential
+	creds := []Credential{}
+	credsDB := db.From("credentials")
+	/*
+		err := credsDB.One("ID", &c.ID, &cred)
+		if err != nil {
+			log.Println("Error getting pubkey:", err)
+		}
+	*/
+	err := credsDB.All(&creds)
+	//err := credsDB.Select(q.Eq("UserID", user.ID), q.Eq("RelyingPartyID", rp.ID)).Find(&creds)
+	if err != nil {
+		log.Println("credsDB.All err:", err)
+		return PublicKey{}, err
+	}
+
+	for _, v := range creds {
+		log.Println("CRED!!!:", v)
+		if v.ID == c.ID {
+			cred = v
+		}
+	}
+	log.Println("PubKey:", cred.PublicKey)
+	return cred.PublicKey, err
 }
 
 // GetPublicKeyForCredential gets the formatted `models.PublicKey` for a provided credential
 func GetPublicKeyForCredential(c *Credential) (ecdsa.PublicKey, error) {
-	log.Println("PubKey:", c.PublicKey)
-	return FormatPublicKey(c.PublicKey)
+	var cred Credential
+	creds := []Credential{}
+	credsDB := db.From("credentials")
+	/*
+		err := credsDB.One("ID", &c.ID, &cred)
+		if err != nil {
+			log.Println("Error getting pubkey:", err)
+		}
+	*/
+	err := credsDB.All(&creds)
+	//err := credsDB.Select(q.Eq("UserID", user.ID), q.Eq("RelyingPartyID", rp.ID)).Find(&creds)
+	if err != nil {
+		log.Println("credsDB.All err:", err)
+		return ecdsa.PublicKey{}, err
+	}
+
+	for _, v := range creds {
+		log.Println("CRED!!!:", v)
+		if v.ID == cred.ID {
+			cred = v
+		}
+	}
+	log.Println("PubKey:", cred.PublicKey)
+	return FormatPublicKey(cred.PublicKey)
 }
 
 // FormatPublicKey formats a `models.PublicKey` into an `ecdsa.PublicKey`
