@@ -21,13 +21,12 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
-	"github.com/jinzhu/gorm"
 	"github.com/ugorji/go/codec"
 
-	"github.com/duo-labs/webauthn/config"
-	"github.com/duo-labs/webauthn/models"
-	req "github.com/duo-labs/webauthn/request"
-	res "github.com/duo-labs/webauthn/response"
+	"git.jba.io/go/webauthn/config"
+	"git.jba.io/go/webauthn/models"
+	req "git.jba.io/go/webauthn/request"
+	res "git.jba.io/go/webauthn/response"
 )
 
 var store = sessions.NewCookieStore([]byte("duo-rox"))
@@ -128,13 +127,20 @@ func RequestNewCredential(w http.ResponseWriter, r *http.Request) {
 
 	// Get Relying Party that is requesting Registration
 	rp, err := models.GetRelyingPartyByHost(u.Hostname())
-
-	if err == gorm.ErrRecordNotFound {
-		fmt.Println("No RP found for host ", u.Hostname())
-		fmt.Printf("Request: %+v\n", r)
+	if err != nil {
+		log.Println("No RP found for host", err)
 		JSONResponse(w, "No relying party defined", http.StatusInternalServerError)
 		return
 	}
+
+	/*
+		if err == gorm.ErrRecordNotFound {
+			fmt.Println("No RP found for host ", u.Hostname())
+			fmt.Printf("Request: %+v\n", r)
+			JSONResponse(w, "No relying party defined", http.StatusInternalServerError)
+			return
+		}
+	*/
 
 	// Log this Registration session
 	sd, err := models.CreateNewSession(&user, &rp, "reg")
@@ -184,20 +190,32 @@ func RequestNewCredential(w http.ResponseWriter, r *http.Request) {
 func GetUserAndRelyingParty(username string, hostname string) (models.User, models.RelyingParty, error) {
 	// Get Registering User
 	user, err := models.GetUserByUsername(username)
-
-	if err == gorm.ErrRecordNotFound {
-		fmt.Println("No user record found with username ", username)
-		err = errors.New("No User found")
-		return user, models.RelyingParty{}, err
+	if err != nil {
+		log.Println("GetUserAndRelyingParty/GetUserByUsername Error:", err)
+		return models.User{}, models.RelyingParty{}, err
 	}
+
+	/*
+		if err == gorm.ErrRecordNotFound {
+			fmt.Println("No user record found with username ", username)
+			err = errors.New("No User found")
+			return user, models.RelyingParty{}, err
+		}
+	*/
 
 	// Get Relying Party that is requesting Registration
 	rp, err := models.GetRelyingPartyByHost(hostname)
-
-	if err == gorm.ErrRecordNotFound {
-		err = errors.New("No RP found")
-		return user, rp, err
+	if err != nil {
+		log.Println("GetUserAndRelyingParty/GetRelyingPartyByHost Error:", err)
+		return models.User{}, models.RelyingParty{}, err
 	}
+
+	/*
+		if err == gorm.ErrRecordNotFound {
+			err = errors.New("No RP found")
+			return user, rp, err
+		}
+	*/
 
 	return user, rp, nil
 }
@@ -506,6 +524,7 @@ func MakeNewCredential(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sessionID := session.Values["session_id"].(uint)
+	log.Println("SessionID:", sessionID)
 	sessionData, err := models.GetSessionData(sessionID)
 
 	verified, err := VerifyRegistrationData(&clientData, &decodedAuthData, &sessionData)
@@ -571,7 +590,7 @@ func VerifyRegistrationData(
 	// C.challenge is returned without padding, so we trim our padding
 	sessionDataChallenge := strings.Trim(b64.URLEncoding.EncodeToString(sessionData.Challenge), "=")
 	if sessionDataChallenge != clientData.Challenge {
-		fmt.Println("Stored Challenge is: ", string(sessionDataChallenge))
+		fmt.Println("Stored Challenge is: ", string(sessionDataChallenge), sessionData)
 		fmt.Println("Client Challenge is: ", string(clientData.Challenge))
 		err := errors.New("Stored and Given Sessions do not match")
 		return false, err
@@ -850,7 +869,8 @@ func ParseAuthData(ead req.EncodedAuthData) (req.DecodedAuthData, error) {
 	var pubKey models.PublicKey
 	err := decoder.Decode(&pubKey)
 	if err != nil {
-		fmt.Println("Error decoding the Public Key in Authentication Data")
+		log.Println(cborPubKey)
+		fmt.Println("Error decoding the Public Key in Authentication Data", err)
 		return decodedAuthData, err
 	}
 
@@ -923,15 +943,21 @@ func CreateNewUser(w http.ResponseWriter, r *http.Request) {
 		Icon:        icon,
 	}
 
-	user, err := models.GetUserByUsername(u.Name)
-	if err != gorm.ErrRecordNotFound {
-		fmt.Println("Got user " + user.Name)
-		JSONResponse(w, user, http.StatusOK)
-		return
+	_, err := models.GetUserByUsername(u.Name)
+	if err != nil {
+		log.Println("CreateNewUser error:", err)
 	}
+	/*
+		if err != gorm.ErrRecordNotFound {
+			fmt.Println("Got user " + user.Name)
+			JSONResponse(w, user, http.StatusOK)
+			return
+		}
+	*/
 
 	err = models.PutUser(&u)
 	if err != nil {
+		log.Println("Error creating user:", err)
 		JSONResponse(w, "Error Creating User", http.StatusInternalServerError)
 		return
 	}

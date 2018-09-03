@@ -3,7 +3,7 @@ package request
 import (
 	"crypto/x509"
 
-	"github.com/duo-labs/webauthn/models"
+	"git.jba.io/go/webauthn/models"
 )
 
 //EncodedAttestationStatement is the authenticator's attestation certificate

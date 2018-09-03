@@ -1,30 +1,25 @@
 package models
 
 import (
-	"fmt"
-
-	"github.com/jinzhu/gorm"
+	"log"
 )
 
 // User represents the user model.
 type User struct {
-	gorm.Model
-	Name           string         `json:"name" sql:"not null;"`
-	DisplayName    string         `json:"display_name"`
-	Icon           string         `json:"icon,omitempty"`
-	Credentials    []Credential   `json:"credentials,omitempty"`
-	RelyingParties []RelyingParty `gorm:"many2many:user_relying_parties"`
+	ID             uint         `json:"id" storm:"id,increment"`
+	Name           string       `json:"name"`
+	DisplayName    string       `json:"display_name"`
+	Icon           string       `json:"icon,omitempty"`
+	Credentials    []Credential `json:"credentials,omitempty"`
+	RelyingParties []RelyingParty
 }
 
 // GetUser returns the user that the given id corresponds to. If no user is found, an
 // error is thrown.
 func GetUser(id int64) (User, error) {
 	u := User{}
-	err := db.Where("id=?", id).Preload("Credential").Find(&u).Error
-	if err != nil {
-		return u, err
-	}
-	err = db.Model(&u).Related(&u.Credentials).Error
+	//err := db.Where("id=?", id).Preload("Credential").Find(&u).Error
+	err := db.One("id", id, &u)
 	if err != nil {
 		return u, err
 	}
@@ -35,23 +30,22 @@ func GetUser(id int64) (User, error) {
 // error is thrown.
 func GetUserByUsername(username string) (User, error) {
 	u := User{}
-	err := db.Where("name = ?", username).Preload("Credentials").Find(&u).Error
+	//err := db.Where("name = ?", username).Preload("Credentials").Find(&u).Error
+	err := db.One("name", username, &u)
 
-	if err != nil {
+	if err == nil {
 		return u, err
 	}
-	err = db.Model(&u).Related(&u.Credentials).Error
-	if err != nil {
-		return u, err
-	}
-	return u, err
+
+	return User{}, err
 }
 
 // PutUser updates the given user
 func PutUser(u *User) error {
-	if db.NewRecord(&u) {
-		fmt.Println("new record")
+	log.Println(u)
+	err := db.Save(u)
+	if err != nil {
+		log.Println("PutUser error:", err)
 	}
-	err := db.Save(&u).Error
 	return err
 }

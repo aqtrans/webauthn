@@ -4,18 +4,21 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 
+	"github.com/asdine/storm"
+
+	"github.com/asdine/storm/q"
 	"github.com/gorilla/sessions"
-	"github.com/jinzhu/gorm"
 )
 
 // SessionData is the Model
 type SessionData struct {
-	gorm.Model
-	Challenge   []byte `json:"challenge" gorm:"not null;unique"`
-	Origin      string `json:"origin" gorm:"not null"`
-	SessionType string `json:"" gorm:"not null"`
+	ID          uint   `json:"id" storm:"increment"`
+	Challenge   []byte `json:"challenge"`
+	Origin      string `json:"origin"`
+	SessionType string `json:"session_type"`
 
 	User   User `json:"user"`
 	UserID uint `json:"user_id"`
@@ -49,6 +52,7 @@ func CreateNewSession(u *User, rp *RelyingParty, st string) (SessionData, error)
 
 	err = PutSession(&sd)
 	if err != nil {
+		log.Println("PutSession error")
 		return SessionData{}, err
 	}
 
@@ -59,7 +63,8 @@ func CreateNewSession(u *User, rp *RelyingParty, st string) (SessionData, error)
 func GetSessionsByUsernameAndRelyingParty(uid uint, rpid string) (SessionData, error) {
 	sd := SessionData{}
 
-	err := db.Where("user_id = ? AND relying_party_id = ?", uid, rpid).Last(&sd).Error
+	//err := db.Where("user_id = ? AND relying_party_id = ?", uid, rpid).Last(&sd).Error
+	err := db.Select(q.Eq("user_id", uid), q.Eq("relying_party_id", rpid)).Reverse().First(&sd)
 	return sd, err
 }
 
@@ -67,20 +72,30 @@ func GetSessionsByUsernameAndRelyingParty(uid uint, rpid string) (SessionData, e
 // error is thrown.
 func GetSessionData(id uint) (SessionData, error) {
 	sd := SessionData{}
-	err := db.Where("id = ?", id).First(&sd).Error
+	//err := db.Where("id = ?", id).First(&sd).Error
+	sds := []SessionData{}
+	err := db.All(&sds)
+	if err != nil {
+		log.Println("GetSessionData:", err)
+	}
+	log.Println("GetSessionData:", sds[1].ID)
+	err = db.One("id", id, &sd)
 	if err != nil {
 		return sd, err
 	}
-	err = db.Model(&sd).Related(&sd.User).Error
-	if err != nil {
-		fmt.Println("Error retrieving User data for session")
-		return sd, err
-	}
-	err = db.Model(&sd).Related(&sd.RelyingParty).Error
-	if err != nil {
-		fmt.Println("Error retrieving RP data for session")
-		return sd, err
-	}
+	/*
+		//err = db.Model(&sd).Related(&sd.User).Error
+		err = db.Select()
+		if err != nil {
+			fmt.Println("Error retrieving User data for session")
+			return sd, err
+		}
+		err = db.Model(&sd).Related(&sd.RelyingParty).Error
+		if err != nil {
+			fmt.Println("Error retrieving RP data for session")
+			return sd, err
+		}
+	*/
 	return sd, nil
 }
 
@@ -88,13 +103,19 @@ func GetSessionData(id uint) (SessionData, error) {
 // error is thrown.
 func GetSessionByUsername(username string) (User, error) {
 	u := User{}
-	err := db.Where("username = ?", username).First(&u).Error
-	// No issue if we don't find a record
-	if err == gorm.ErrRecordNotFound {
+	//err := db.Where("username = ?", username).First(&u).Error
+	err := db.One("username", username, &u)
+	if err == storm.ErrNotFound {
 		return u, nil
-	} else if err == nil {
-		return u, ErrUsernameTaken
 	}
+	// No issue if we don't find a record
+	/*
+		if err == gorm.ErrRecordNotFound {
+			return u, nil
+		} else if err == nil {
+			return u, ErrUsernameTaken
+		}
+	*/
 	return u, err
 }
 
@@ -108,10 +129,7 @@ func GetSessionForRequest(r *http.Request, store *sessions.CookieStore) (Session
 
 // PutSession - Update or Create SessionData
 func PutSession(sd *SessionData) error {
-	if db.NewRecord(sd) {
-		fmt.Println("Adding new Session Data")
-	}
-	err := db.Save(sd).Error
+	err := db.Save(sd)
 	return err
 }
 

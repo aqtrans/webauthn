@@ -8,8 +8,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/duo-labs/webauthn/config"
-	"github.com/duo-labs/webauthn/models"
+	"git.jba.io/go/webauthn/config"
+	"git.jba.io/go/webauthn/models"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -20,7 +20,7 @@ type HandlersSuite struct {
 var server = httptest.NewUnstartedServer(CreateRouter())
 
 func (hs *HandlersSuite) SetupSuite() {
-	config.Conf.DBName = "sqlite3"
+	config.Conf.DBName = "boltdb"
 	config.Conf.DBPath = ":memory:"
 	config.Conf.HostAddress = "localhost"
 	err := models.Setup()

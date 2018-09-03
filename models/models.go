@@ -7,16 +7,17 @@ import (
 	"io"
 	"log"
 	"os"
-	"time"
 
-	"github.com/duo-labs/webauthn/config"
-
-	_ "github.com/go-sql-driver/mysql" // Blank import needed to import mysql
-	"github.com/jinzhu/gorm"
-	_ "github.com/mattn/go-sqlite3" // Blank import needed to import sqlite3
+	"github.com/boltdb/bolt"
 )
 
-var db *gorm.DB
+const (
+	sessionBucket = "sessions"
+	userBucket    = "users"
+	rpBucket      = "rp"
+)
+
+var db *bolt.DB
 var err error
 
 // ErrUsernameTaken is thrown when a user attempts to register a username that is taken.
@@ -35,67 +36,47 @@ func generateSecureKey() string {
 // Setup initializes the Conn object
 // It also populates the Config object
 func Setup() error {
-	createDb := false
-	if _, err = os.Stat(config.Conf.DBPath); err != nil || config.Conf.DBPath == ":memory:" {
-		createDb = true
+	openDB()
+
+	err := db.Update(func(tx *bolt.Tx) error {
+		registerKeyBucket, err := tx.CreateBucketIfNotExists([]byte(registerKeysBucketName))
+		if err != nil {
+			return fmt.Errorf("create bucket: %s", err)
+		}
+
+		userBucket, err := tx.CreateBucketIfNotExists([]byte(userInfoBucketName))
+		if err != nil {
+			return fmt.Errorf("create bucket: %s", err)
+		}
+	})
+
+	// Create the default user
+	initUser := User{
+		ID:          1,
+		Name:        "admin",
+		DisplayName: "Mr. Admin Face",
 	}
-	// Open our database connection
-	db, err = gorm.Open(config.Conf.DBName, config.Conf.DBPath)
-	if err != nil {
-		fmt.Printf("%#v", err)
-		return err
+	// Create the default relying party
+	initRP := RelyingParty{
+		ID:          "localhost",
+		DisplayName: "Acme, Inc",
+		Icon:        "lol.catpics.png",
+		Users:       []User{initUser},
 	}
-	db.LogMode(false)
-	db.SetLogger(Logger)
-	db.DB().SetMaxOpenConns(1)
+
+	err = db.Save(&initRP)
 	if err != nil {
 		Logger.Println(err)
 		return err
 	}
-	// Migrate up to the latest version
-	//If the database didn't exist, we need to create the admin user
-	err := db.AutoMigrate(
-		&RelyingParty{},
-		&User{},
-		&Credential{},
-		&PublicKey{},
-		&SessionData{},
-	).Error
 
+	err = db.Save(&initUser)
 	if err != nil {
-		fmt.Printf("%#v", err)
+		Logger.Println(err)
 		return err
 	}
 
-	gorm.NowFunc = func() time.Time {
-		return time.Now().UTC()
-	}
+	db.Init(&SessionData{})
 
-	if createDb {
-		// Create the default user
-		initUser := User{
-			Name:        "admin",
-			DisplayName: "Mr. Admin Face",
-		}
-		// Create the default relying party
-		initRP := RelyingParty{
-			ID:          config.Conf.HostAddress,
-			DisplayName: "Acme, Inc",
-			Icon:        "lol.catpics.png",
-			Users:       []User{initUser},
-		}
-
-		err = db.Save(&initRP).Error
-		if err != nil {
-			Logger.Println(err)
-			return err
-		}
-
-		err = db.Save(&initUser).Error
-		if err != nil {
-			Logger.Println(err)
-			return err
-		}
-	}
 	return nil
 }

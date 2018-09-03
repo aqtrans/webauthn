@@ -1,6 +1,6 @@
 package response
 
-import "github.com/duo-labs/webauthn/models"
+import "git.jba.io/go/webauthn/models"
 
 import "encoding/base64"
 
