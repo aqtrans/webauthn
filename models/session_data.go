@@ -78,8 +78,8 @@ func GetSessionData(id uint) (SessionData, error) {
 	if err != nil {
 		log.Println("GetSessionData:", err)
 	}
-	log.Println("GetSessionData:", sds[1].ID)
-	err = db.One("id", id, &sd)
+	err = db.Select(q.Eq("id", id)).First(&sd)
+	//err = db.One("id", id, &sd)
 	if err != nil {
 		return sd, err
 	}

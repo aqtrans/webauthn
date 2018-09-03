@@ -8,16 +8,10 @@ import (
 	"log"
 	"os"
 
-	"github.com/boltdb/bolt"
+	"github.com/asdine/storm"
 )
 
-const (
-	sessionBucket = "sessions"
-	userBucket    = "users"
-	rpBucket      = "rp"
-)
-
-var db *bolt.DB
+var db *storm.DB
 var err error
 
 // ErrUsernameTaken is thrown when a user attempts to register a username that is taken.
@@ -36,19 +30,11 @@ func generateSecureKey() string {
 // Setup initializes the Conn object
 // It also populates the Config object
 func Setup() error {
-	openDB()
-
-	err := db.Update(func(tx *bolt.Tx) error {
-		registerKeyBucket, err := tx.CreateBucketIfNotExists([]byte(registerKeysBucketName))
-		if err != nil {
-			return fmt.Errorf("create bucket: %s", err)
-		}
-
-		userBucket, err := tx.CreateBucketIfNotExists([]byte(userInfoBucketName))
-		if err != nil {
-			return fmt.Errorf("create bucket: %s", err)
-		}
-	})
+	db, err = storm.Open("webauthn.db")
+	//defer db.Close()
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	// Create the default user
 	initUser := User{
