@@ -2,7 +2,7 @@ package models
 
 // RelyingParty is the group the User is authenticating with
 type RelyingParty struct {
-	ID          string `json:"id" storm:"id"`
+	ID          string `json:"id" storm:"id,increment"`
 	DisplayName string `json:"display_name"`
 	Icon        string `json:"icon,omitempty"`
 	Users       []User `json:"users,omitempty" storm:"unique"`
@@ -12,7 +12,8 @@ type RelyingParty struct {
 func GetDefaultRelyingParty() (RelyingParty, error) {
 	rp := RelyingParty{}
 	//err := db.Where("id=?", config.Conf.HostAddress).First(&rp).Error
-	err := db.One("ID", "localhost", &rp)
+	rps := db.From("rps")
+	err := rps.One("ID", "localhost", &rp)
 	if err != nil {
 		return rp, err
 	}
@@ -23,7 +24,8 @@ func GetDefaultRelyingParty() (RelyingParty, error) {
 func GetRelyingPartyByHost(hostname string) (RelyingParty, error) {
 	rp := RelyingParty{}
 	//err := db.Where("id = ?", hostname).First(&rp).Error
-	err := db.One("ID", hostname, &rp)
+	rps := db.From("rps")
+	err := rps.One("ID", hostname, &rp)
 	if err != nil {
 		return rp, err
 	}
@@ -32,6 +34,7 @@ func GetRelyingPartyByHost(hostname string) (RelyingParty, error) {
 
 // PutRelyingParty creates or updates a Relying Party
 func PutRelyingParty(rp *RelyingParty) error {
-	err := db.Save(rp)
+	rps := db.From("rps")
+	err := rps.Save(rp)
 	return err
 }

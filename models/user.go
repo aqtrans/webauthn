@@ -6,7 +6,7 @@ import (
 
 // User represents the user model.
 type User struct {
-	ID             uint         `json:"id" storm:"id,increment"`
+	ID             int64        `json:"id" storm:"id,increment"`
 	Name           string       `json:"name"`
 	DisplayName    string       `json:"display_name"`
 	Icon           string       `json:"icon,omitempty"`
@@ -19,7 +19,20 @@ type User struct {
 func GetUser(id int64) (User, error) {
 	u := User{}
 	//err := db.Where("id=?", id).Preload("Credential").Find(&u).Error
-	err := db.One("id", id, &u)
+	userDB := db.From("users")
+	err := userDB.One("ID", id, &u)
+	/*
+		users := []User{}
+		err := db.All(&users)
+		if err == nil {
+			for _, v := range users {
+				if v.ID == id {
+					u = v
+				}
+			}
+			return u, err
+		}
+	*/
 	if err != nil {
 		return u, err
 	}
@@ -31,19 +44,30 @@ func GetUser(id int64) (User, error) {
 func GetUserByUsername(username string) (User, error) {
 	u := User{}
 	//err := db.Where("name = ?", username).Preload("Credentials").Find(&u).Error
-	err := db.One("name", username, &u)
+	userDB := db.From("users")
+	err := userDB.One("Name", username, &u)
+	/*
+		users := []User{}
+		err := db.All(&users)
+		if err == nil {
+			for _, v := range users {
+				if v.Name == username {
+					u = v
+				}
+			}
+			return u, err
+		}
+	*/
+	log.Println("User:", u)
 
-	if err == nil {
-		return u, err
-	}
-
-	return User{}, err
+	return u, err
 }
 
 // PutUser updates the given user
 func PutUser(u *User) error {
 	log.Println(u)
-	err := db.Save(u)
+	userDB := db.From("users")
+	err := userDB.Save(u)
 	if err != nil {
 		log.Println("PutUser error:", err)
 	}

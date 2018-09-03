@@ -298,7 +298,7 @@ func GetAssertion(w http.ResponseWriter, r *http.Request) {
 // resond whether or not it was successful alongside the relevant credential.
 func MakeAssertion(w http.ResponseWriter, r *http.Request) {
 	session, _ := store.Get(r, "assertion-session")
-	sessionID := session.Values["session_id"].(uint)
+	sessionID := session.Values["session_id"].(int64)
 	sessionData, err := models.GetSessionData(sessionID)
 	if err != nil {
 		JSONResponse(w, "Missing Session Data Cookie", http.StatusBadRequest)
@@ -361,7 +361,7 @@ func VerifyAssertionData(
 	// var credential models.Credential
 	credential, err := models.GetCredentialForUser(&sessionData.User, credentialID)
 	if err != nil {
-		fmt.Println("Issue getting credential during Assertion")
+		fmt.Println("Issue getting credential during Assertion", err)
 		err := errors.New("Issue getting credential during Assertion")
 		return false, credential, err
 	}
@@ -523,7 +523,7 @@ func MakeNewCredential(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID := session.Values["session_id"].(uint)
+	sessionID := session.Values["session_id"].(int64)
 	log.Println("SessionID:", sessionID)
 	sessionData, err := models.GetSessionData(sessionID)
 

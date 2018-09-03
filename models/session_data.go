@@ -15,13 +15,13 @@ import (
 
 // SessionData is the Model
 type SessionData struct {
-	ID          uint   `json:"id" storm:"increment"`
+	ID          int64  `json:"id" storm:"id,increment"`
 	Challenge   []byte `json:"challenge"`
 	Origin      string `json:"origin"`
 	SessionType string `json:"session_type"`
 
-	User   User `json:"user"`
-	UserID uint `json:"user_id"`
+	User   User  `json:"user"`
+	UserID int64 `json:"user_id"`
 
 	RelyingParty   RelyingParty `json:"rp"`
 	RelyingPartyID string       `json:"rp_id"`
@@ -60,29 +60,43 @@ func CreateNewSession(u *User, rp *RelyingParty, st string) (SessionData, error)
 }
 
 // GetSessionsByUsernameAndRelyingParty - Get the last recorded SessionData for a user/rp
-func GetSessionsByUsernameAndRelyingParty(uid uint, rpid string) (SessionData, error) {
+func GetSessionsByUsernameAndRelyingParty(uid int64, rpid string) (SessionData, error) {
 	sd := SessionData{}
 
 	//err := db.Where("user_id = ? AND relying_party_id = ?", uid, rpid).Last(&sd).Error
-	err := db.Select(q.Eq("user_id", uid), q.Eq("relying_party_id", rpid)).Reverse().First(&sd)
+	sessions := db.From("sessions")
+	err := sessions.Select(q.Eq("UserID", uid), q.Eq("RelyingPartyID", rpid)).Reverse().First(&sd)
 	return sd, err
 }
 
 // GetSessionData returns the SessionData that the given id corresponds to. If no user is found, an
 // error is thrown.
-func GetSessionData(id uint) (SessionData, error) {
+func GetSessionData(id int64) (SessionData, error) {
 	sd := SessionData{}
 	//err := db.Where("id = ?", id).First(&sd).Error
-	sds := []SessionData{}
-	err := db.All(&sds)
+	sessions := db.From("sessions")
+	err = sessions.One("ID", id, &sd)
 	if err != nil {
 		log.Println("GetSessionData:", err)
 	}
-	err = db.Select(q.Eq("id", id)).First(&sd)
-	//err = db.One("id", id, &sd)
-	if err != nil {
-		return sd, err
-	}
+	/*
+		sds := []SessionData{}
+		err := db.All(&sds)
+		if err != nil {
+			log.Println("GetSessionData:", err)
+		}
+		for _, v := range sds {
+			if v.ID == id {
+				sd = v
+			}
+		}
+	*/
+	/*
+		if err != nil {
+			return sd, err
+		}*/
+	log.Println("SESSION DATA:", &sd)
+
 	/*
 		//err = db.Model(&sd).Related(&sd.User).Error
 		err = db.Select()
@@ -104,7 +118,8 @@ func GetSessionData(id uint) (SessionData, error) {
 func GetSessionByUsername(username string) (User, error) {
 	u := User{}
 	//err := db.Where("username = ?", username).First(&u).Error
-	err := db.One("username", username, &u)
+	sessions := db.From("sessions")
+	err := sessions.One("Username", username, &u)
 	if err == storm.ErrNotFound {
 		return u, nil
 	}
@@ -122,14 +137,15 @@ func GetSessionByUsername(username string) (User, error) {
 // GetSessionForRequest gets the stored session data for a provided request.
 func GetSessionForRequest(r *http.Request, store *sessions.CookieStore) (SessionData, error) {
 	session, _ := store.Get(r, "registration-session")
-	sessionID := session.Values["session_id"].(uint)
+	sessionID := session.Values["session_id"].(int64)
 	sessionData, err := GetSessionData(sessionID)
 	return sessionData, err
 }
 
 // PutSession - Update or Create SessionData
 func PutSession(sd *SessionData) error {
-	err := db.Save(sd)
+	sessions := db.From("sessions")
+	err := sessions.Save(sd)
 	return err
 }
 

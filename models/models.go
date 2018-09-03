@@ -50,19 +50,20 @@ func Setup() error {
 		Users:       []User{initUser},
 	}
 
-	err = db.Save(&initRP)
+	users := db.From("users")
+	rps := db.From("rps")
+
+	err = rps.Save(&initRP)
 	if err != nil {
-		Logger.Println(err)
+		log.Println(err)
 		return err
 	}
 
-	err = db.Save(&initUser)
+	err = users.Save(&initUser)
 	if err != nil {
-		Logger.Println(err)
+		log.Println(err)
 		return err
 	}
-
-	db.Init(&SessionData{})
 
 	return nil
 }

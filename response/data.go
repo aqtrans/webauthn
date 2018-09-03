@@ -31,7 +31,7 @@ type MakeOptionUser struct {
 	Name        string `json:"name,omitempty"`
 	DisplayName string `json:"displayName,omitempty"`
 	Icon        string `json:"icon,omitempty"`
-	ID          uint   `json:"id,omitempty"`
+	ID          int64  `json:"id,omitempty"`
 }
 
 // CredentialParameter is the credential type and alg being requested
